@@ -4,8 +4,34 @@
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
 
-use rsa::RsaPrivateKey;
+use rsa::{pkcs1::ALGORITHM_ID, RsaPrivateKey};
+use sec1::{
+    der::SecretDocument,
+    pkcs8::{EncodePrivateKey, LineEnding, PrivateKeyInfo},
+    DecodeEcPrivateKey,
+};
 use thiserror::Error;
+
+struct PrivateKey {
+    /// Private key data.
+    pub private_key: Vec<u8>,
+}
+
+impl DecodeEcPrivateKey for PrivateKey {
+    fn from_sec1_der(private_key: &[u8]) -> Result<Self, sec1::Error> {
+        Ok(Self {
+            private_key: private_key.to_vec(),
+        })
+    }
+}
+
+impl EncodePrivateKey for PrivateKey {
+    fn to_pkcs8_der(&self) -> Result<SecretDocument, sec1::pkcs8::Error> {
+        let key_info = PrivateKeyInfo::new(ALGORITHM_ID, self.private_key.as_ref());
+        let doc: SecretDocument = key_info.try_into()?;
+        Ok(doc)
+    }
+}
 
 /// Errors from [`from_sec1_pem`]
 #[derive(Debug, Error)]
@@ -25,11 +51,7 @@ pub enum ConvertSec1Error {
 ///
 /// Returns `Err` when de/serialization fails. See [`ConvertSec1Error`].
 pub fn from_sec1_pem(pem: &str) -> Result<String, ConvertSec1Error> {
-    use sec1::{
-        pkcs8::{EncodePrivateKey, LineEnding},
-        DecodeEcPrivateKey,
-    };
-    let pkdoc = RsaPrivateKey::from_sec1_pem(pem).map_err(ConvertSec1Error::Deserialize)?;
+    let pkdoc = PrivateKey::from_sec1_pem(pem).map_err(ConvertSec1Error::Deserialize)?;
     let pkcs8_pem = pkdoc
         .to_pkcs8_pem(LineEnding::LF)
         .map_err(ConvertSec1Error::Serialize)?;
@@ -55,10 +77,7 @@ pub enum ConvertPkcs1Error {
 ///
 /// Returns `Err` when de/serialization fails. See [`ConvertPkcs1Error`].
 pub fn from_pkcs1_pem(pem: &str) -> Result<String, ConvertPkcs1Error> {
-    use rsa::{
-        pkcs1::DecodeRsaPrivateKey,
-        pkcs8::{EncodePrivateKey, LineEnding},
-    };
+    use rsa::pkcs1::DecodeRsaPrivateKey;
     let pkey = RsaPrivateKey::from_pkcs1_pem(pem).map_err(ConvertPkcs1Error::Deserialize)?;
     // TODO Use `LineEnding::default()`? Always use `LF` for now.
     let pkcs8_pem = pkey
@@ -116,9 +135,9 @@ mod tests {
     fn test_ec_conv() {
         let ec_pem = indoc! {"
             -----BEGIN EC PRIVATE KEY-----
-            MHcCAQEEIAL4r6d9lPq3XEDSZTL9l0D6thrPM7RiAhl3Fjuw9Ji2oAoGCCqGSM49
-            AwEHoUQDQgAE4U64dviQRMujGK0g80dwzgjV7fnwLkj6RfvINMHvD6eiCsphWIlq
-            cddTAoOjXVQDu3qMAS1Ghfyk1F377EW1Sw==
+            MHcCAQEEIGliQXFWGmM0DeDn2GnyoFSSVY4aBIaLap+FSoZniBiNoAoGCCqGSM49
+            AwEHoUQDQgAEHKz/tV8vLO/YnYnrN0smgRUkUoAt7qCZFgaBN9g5z3/EgaREkjBN
+            fvZqwRe+/oOo0I8VXytS+fYY3URwKQSODw==
             -----END EC PRIVATE KEY-----
         "};
         // println!("{}", ec_pem);

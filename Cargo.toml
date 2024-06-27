@@ -11,8 +11,7 @@ authors = ["kazk <kazk.dev@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-pkcs8 = { version = "0.10", features = ["alloc", "pem", "std"] }
-rsa = { version = "0.9", features = ["pem", "std"] }
+rsa = { version = "0.9.6" }
 sec1 = { version = "0.7", features = ["alloc", "pkcs8", "pem", "std"] }
 thiserror = "1.0.30"
 
