@@ -4,6 +4,7 @@
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
 
+use rsa::RsaPrivateKey;
 use thiserror::Error;
 
 /// Errors from [`from_sec1_pem`]
@@ -25,10 +26,10 @@ pub enum ConvertSec1Error {
 /// Returns `Err` when de/serialization fails. See [`ConvertSec1Error`].
 pub fn from_sec1_pem(pem: &str) -> Result<String, ConvertSec1Error> {
     use sec1::{
-        pkcs8::{EncodePrivateKey, LineEnding, PrivateKeyDocument},
+        pkcs8::{EncodePrivateKey, LineEnding},
         DecodeEcPrivateKey,
     };
-    let pkdoc = PrivateKeyDocument::from_sec1_pem(pem).map_err(ConvertSec1Error::Deserialize)?;
+    let pkdoc = RsaPrivateKey::from_sec1_pem(pem).map_err(ConvertSec1Error::Deserialize)?;
     let pkcs8_pem = pkdoc
         .to_pkcs8_pem(LineEnding::LF)
         .map_err(ConvertSec1Error::Serialize)?;
@@ -55,14 +56,13 @@ pub enum ConvertPkcs1Error {
 /// Returns `Err` when de/serialization fails. See [`ConvertPkcs1Error`].
 pub fn from_pkcs1_pem(pem: &str) -> Result<String, ConvertPkcs1Error> {
     use rsa::{
-        pkcs1::FromRsaPrivateKey,
-        pkcs8::{LineEnding, ToPrivateKey},
-        RsaPrivateKey,
+        pkcs1::DecodeRsaPrivateKey,
+        pkcs8::{EncodePrivateKey, LineEnding},
     };
     let pkey = RsaPrivateKey::from_pkcs1_pem(pem).map_err(ConvertPkcs1Error::Deserialize)?;
     // TODO Use `LineEnding::default()`? Always use `LF` for now.
     let pkcs8_pem = pkey
-        .to_pkcs8_pem_with_le(LineEnding::LF)
+        .to_pkcs8_pem(LineEnding::LF)
         .map_err(ConvertPkcs1Error::Serialize)?;
     let pkcs8_pem: &str = pkcs8_pem.as_ref();
     Ok(pkcs8_pem.to_owned())
