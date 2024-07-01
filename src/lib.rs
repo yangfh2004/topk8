@@ -4,30 +4,42 @@
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
 
-use rsa::{pkcs1::ALGORITHM_ID, RsaPrivateKey};
+use rsa::{
+    pkcs8::{self, ObjectIdentifier},
+    RsaPrivateKey,
+};
 use sec1::{
-    der::SecretDocument,
+    der::{Decode, SecretDocument},
     pkcs8::{EncodePrivateKey, LineEnding, PrivateKeyInfo},
-    DecodeEcPrivateKey,
+    DecodeEcPrivateKey, EcPrivateKey, ALGORITHM_OID,
 };
 use thiserror::Error;
 
 struct PrivateKey {
     /// Private key data.
     pub private_key: Vec<u8>,
+    pub params_oid: Option<ObjectIdentifier>,
 }
 
 impl DecodeEcPrivateKey for PrivateKey {
     fn from_sec1_der(private_key: &[u8]) -> Result<Self, sec1::Error> {
+        let params_oid = EcPrivateKey::from_der(private_key)?
+            .parameters
+            .and_then(|params| params.named_curve());
         Ok(Self {
             private_key: private_key.to_vec(),
+            params_oid,
         })
     }
 }
 
 impl EncodePrivateKey for PrivateKey {
     fn to_pkcs8_der(&self) -> Result<SecretDocument, sec1::pkcs8::Error> {
-        let key_info = PrivateKeyInfo::new(ALGORITHM_ID, self.private_key.as_ref());
+        let algorithm = pkcs8::AlgorithmIdentifierRef {
+            oid: ALGORITHM_OID,
+            parameters: self.params_oid.as_ref().map(Into::into),
+        };
+        let key_info = PrivateKeyInfo::new(algorithm, self.private_key.as_ref());
         let doc: SecretDocument = key_info.try_into()?;
         Ok(doc)
     }
@@ -92,6 +104,7 @@ pub fn from_pkcs1_pem(pem: &str) -> Result<String, ConvertPkcs1Error> {
 mod tests {
     use super::*;
     use indoc::indoc;
+    use jsonwebtoken::EncodingKey;
 
     #[test]
     fn test_rsa_conv() {
@@ -145,5 +158,6 @@ mod tests {
         let pkcs8_pem = from_sec1_pem(ec_pem).unwrap();
         assert!(pkcs8_pem.starts_with("-----BEGIN PRIVATE KEY-----"));
         assert!(pkcs8_pem.ends_with("-----END PRIVATE KEY-----\n"));
+        EncodingKey::from_ec_pem(pkcs8_pem.as_bytes()).unwrap();
     }
 }

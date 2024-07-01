@@ -1,6 +1,6 @@
 [package]
 name = "topk8"
-version = "0.0.2"
+version = "0.0.3"
 license = "Apache-2.0"
 description = "Convert private keys to PKCS#8 format in pure Rust"
 keywords = ["pkcs8", "pem"]
@@ -17,3 +17,4 @@ thiserror = "1.0.30"
 
 [dev-dependencies]
 indoc = "2.0"
+jsonwebtoken = { git = "https://github.com/yangfh2004/jsonwebtoken.git" }
